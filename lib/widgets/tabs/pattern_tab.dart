@@ -813,13 +813,13 @@ class _PatternTabState extends State<PatternTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.psychology,
+            Icons.visibility,
             color: AppColors.primaryPink,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
-            'PATTERN.AI',
+            'MySnitch AI',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 14,
