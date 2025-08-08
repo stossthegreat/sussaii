@@ -1,94 +1,150 @@
-import 'package:flutter/material.dart';
-import '../models/app_models.dart';
+    import 'dart:convert';
+import 'dart:html' as html;
+import '../models/whisperfire_models.dart';
 
-class AppConstants {
-  // Animation Durations
-  static const Duration fastAnimation = Duration(milliseconds: 200);
-  static const Duration normalAnimation = Duration(milliseconds: 300);
-  static const Duration slowAnimation = Duration(milliseconds: 500);
-  static const Duration analysisAnimation = Duration(milliseconds: 2800);
-  static const Duration patternAnalysisAnimation = Duration(milliseconds: 3200);
+class ApiService {
+  // ✅ CORRECT Railway URL
+  static const String baseUrl = 'https://suss-ai-backend-only-production-c323.up.railway.app';
 
-  // Animation Curves
-  static const Curve defaultCurve = Curves.easeInOut;
-  static const Curve bounceCurve = Curves.elasticOut;
-  static const Curve slideCurve = Curves.easeOutCubic;
+  // 🚀 WHISPERFIRE API CALL - Matches backend exactly
+  static Future<WhisperfireResponse> analyzeMessageWhisperfire({
+    required String inputText,
+    required String contentType,
+    required String analysisGoal,
+    required String tone,
+    String? relationship,
+    String? personName,
+    String? stylePreference,
+  }) async {
+    print('🚀 ApiService: Making API call...');
+    print('🚀 URL: $baseUrl/api/v1/analyze');
+    print('🚀 Analysis goal: $analysisGoal');
+    
+    try {
+      // Process input text
+      dynamic inputData;
+      if (analysisGoal == 'pattern_profiling') {
+        inputData = inputText.split('\n').where((line) => line.trim().isNotEmpty).toList();
+      } else {
+        inputData = inputText;
+      }
+      
+      // Build request body - EXACTLY matches backend expectations
+      final body = {
+        'input_text': inputData,
+        'content_type': contentType,
+        'analysis_goal': analysisGoal,
+        'tone': tone,
+        'relationship': relationship ?? 'Partner',
+      };
+      
+      // Add optional fields only if provided
+      if (personName != null && personName.isNotEmpty) {
+        body['person_name'] = personName;
+      }
+      if (stylePreference != null && stylePreference.isNotEmpty) {
+        body['style_preference'] = stylePreference;
+      }
+      
+      print('📤 Sending request body: ${jsonEncode(body)}');
+      
+      // Use dart:html for web compatibility
+      final request = html.HttpRequest();
+      request.open('POST', '$baseUrl/api/v1/analyze');
+      request.setRequestHeader('Content-Type', 'application/json');
+      request.setRequestHeader('Accept', 'application/json');
+      
+      // Send request
+      request.send(jsonEncode(body));
+      
+      // Wait for response
+      await request.onLoad.first;
+      
+      print('📥 Response Status: ${request.status}');
+      print('📥 Response Body: ${request.responseText}');
+      
+      if (request.status == 200) {
+        final jsonData = jsonDecode(request.responseText!);
+        print('📊 Parsed JSON: $jsonData');
+        
+        // Extract data from the response
+        final data = jsonData['data'];
+        print('📊 Response data: $data');
+        
+        // Create WhisperfireResponse based on analysis goal
+        WhisperfireResponse response;
+        
+        if (analysisGoal == 'instant_scan') {
+          response = WhisperfireResponse(
+            scanResult: WhisperfireScanResult.fromMap(data),
+            viralPotential: data['confidence_metrics']?['viral_potential'] ?? 75,
+            confidenceLevel: 85,
+            empowermentScore: 90,
+            safetyPriority: 'MODERATE',
+            psychologicalAccuracy: 85,
+          );
+        } else if (analysisGoal == 'pattern_profiling') {
+          response = WhisperfireResponse(
+            patternResult: WhisperfirePatternResult.fromMap(data),
+            viralPotential: data['confidence_metrics']?['viral_potential'] ?? 85,
+            confidenceLevel: 90,
+            empowermentScore: 95,
+            safetyPriority: data['risk_assessment']?['intervention_urgency'] ?? 'MODERATE',
+            psychologicalAccuracy: 90,
+          );
+        } else {
+          // Fallback for other analysis goals
+          response = WhisperfireResponse(
+            viralPotential: 50,
+            confidenceLevel: 70,
+            empowermentScore: 60,
+            safetyPriority: 'MODERATE',
+            psychologicalAccuracy: 70,
+          );
+        }
+        
+        print('✅ Successfully created WhisperfireResponse');
+        return response;
+        
+      } else {
+        print('❌ HTTP Error ${request.status}');
+        print('❌ Response body: ${request.responseText}');
+        
+        // Try to parse error message
+        try {
+          final errorData = jsonDecode(request.responseText!);
+          throw Exception('API Error: ${errorData['error'] ?? 'Unknown error'}');
+        } catch (e) {
+          throw Exception('HTTP ${request.status}: ${request.responseText}');
+        }
+      }
+      
+    } catch (e) {
+      print('❌ ApiService error: $e');
+      print('❌ Error type: ${e.runtimeType}');
+      rethrow;
+    }
+  }
 
-  // Glassmorphism Settings
-  static const double glassBlur = 20.0;
-  static const double glassOpacity = 0.1;
-  static const double cardBlur = 16.0;
-  static const double cardOpacity = 0.8;
-
-  // Border Radius
-  static const double smallRadius = 8.0;
-  static const double mediumRadius = 12.0;
-  static const double largeRadius = 16.0;
-  static const double xlRadius = 20.0;
-
-  // Spacing
-  static const double smallSpacing = 8.0;
-  static const double mediumSpacing = 16.0;
-  static const double largeSpacing = 24.0;
-  static const double xlSpacing = 32.0;
-
-  // 🚀 WHISPERFIRE CONTENT TYPES
-  static const List<Category> categories = [
-    Category(id: 'dm', label: '💬 DM', desc: 'Direct messages'),
-    Category(id: 'bio', label: '📝 Bio', desc: 'Social media bios'),
-    Category(id: 'story', label: '📖 Story', desc: 'Social media stories'),
-    Category(id: 'post', label: '📱 Post', desc: 'Social media posts'),
-  ];
-
-  // 🚀 WHISPERFIRE RELATIONSHIP CONTEXTS
-  static const List<RelationshipContext> relationshipContexts = [
-    RelationshipContext(id: 'Partner', label: '💕 Partner', desc: 'Romantic relationships'),
-    RelationshipContext(id: 'Ex', label: '💔 Ex', desc: 'Former partners'),
-    RelationshipContext(id: 'Date', label: '💘 Date', desc: 'Dating situations'),
-    RelationshipContext(id: 'Friend', label: '👥 Friend', desc: 'Friendships'),
-    RelationshipContext(id: 'Coworker', label: '💼 Coworker', desc: 'Work relationships'),
-    RelationshipContext(id: 'Family', label: '👨‍👩‍👧‍👦 Family', desc: 'Family dynamics'),
-    RelationshipContext(id: 'Roommate', label: '🏠 Roommate', desc: 'Living situations'),
-    RelationshipContext(id: 'Stranger', label: '👤 Stranger', desc: 'Unknown people'),
-  ];
-
-  // 🚀 WHISPERFIRE ANALYSIS GOALS
-  static const List<AnalysisGoal> analysisGoals = [
-    AnalysisGoal(id: 'instant_scan', label: '⚡ Instant Scan', desc: 'Quick psychological radar'),
-    AnalysisGoal(id: 'comeback_generation', label: '🗡️ Comeback Generation', desc: 'Viral weapon creation'),
-    AnalysisGoal(id: 'pattern_profiling', label: '🧠 Pattern Profiling', desc: 'Deep behavioral analysis'),
-  ];
-
-  // 🚀 WHISPERFIRE TONE STYLES
-  static const List<ToneStyle> toneStyles = [
-    ToneStyle(id: 'brutal', label: '🔥 Brutal', desc: 'No mercy'),
-    ToneStyle(id: 'soft', label: '💭 Soft', desc: 'Gentle truth'),
-    ToneStyle(id: 'clinical', label: '🧠 Clinical', desc: 'Cold facts'),
-  ];
-
-  // 🚀 WHISPERFIRE COMEBACK TONES
-  static const List<ComebackTone> comebackTones = [
-    ComebackTone(id: 'mature', label: '🧠 Mature', desc: 'Emotionally intelligent'),
-    ComebackTone(id: 'savage', label: '🔥 Savage', desc: 'No mercy'),
-    ComebackTone(id: 'petty', label: '😈 Petty', desc: 'Calculated pettiness'),
-    ComebackTone(id: 'playful', label: '🎭 Playful', desc: 'Witty & light'),
-  ];
-
-  // 🚀 WHISPERFIRE COMEBACK STYLE ARCHETYPES
-  static const List<ComebackStyle> comebackStyles = [
-    ComebackStyle(id: 'clipped', label: '✂️ Clipped', desc: 'Short, sharp responses'),
-    ComebackStyle(id: 'one_liner', label: '💥 One Liner', desc: 'Single powerful line'),
-    ComebackStyle(id: 'reverse_uno', label: '🔄 Reverse Uno', desc: 'Turn their tactic back'),
-    ComebackStyle(id: 'screenshot_bait', label: '📸 Screenshot Bait', desc: 'Viral, shareable'),
-    ComebackStyle(id: 'monologue', label: '🎭 Monologue', desc: 'Detailed explanations'),
-  ];
-
-  // Tabs
-  static const List<TabItem> tabs = [
-    TabItem(id: 'scan', label: 'Scan', iconData: 'eye'),
-    TabItem(id: 'comebacks', label: 'Comebacks', iconData: 'zap'),
-    TabItem(id: 'pattern', label: 'Pattern', iconData: 'git_compare'),
-    TabItem(id: 'history', label: 'History', iconData: 'history'),
-    TabItem(id: 'settings', label: 'Settings', iconData: 'settings'),
-  ];
-} 
+  // 🧪 Simple health check method
+  static Future<bool> testConnection() async {
+    try {
+      print('🔍 Testing connection to: $baseUrl/api/v1/health');
+      
+      final request = html.HttpRequest();
+      request.open('GET', '$baseUrl/api/v1/health');
+      request.setRequestHeader('Accept', 'application/json');
+      
+      request.send();
+      await request.onLoad.first;
+      
+      print('🔍 Health check status: ${request.status}');
+      print('🔍 Health check response: ${request.responseText}');
+      
+      return request.status == 200;
+    } catch (e) {
+      print('❌ Health check failed: $e');
+      return false;
+    }
+  }
+}
