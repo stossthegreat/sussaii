@@ -831,13 +831,13 @@ class _ScanTabState extends State<ScanTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.psychology,
+            Icons.visibility,
             color: AppColors.primaryPink,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
-            'WHISPERFIRE AI',
+            'MySnitch AI',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 14,
