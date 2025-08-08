@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../utils/constants.dart';
-import '../../utils/mock_data.dart';
 import '../../models/whisperfire_models.dart';
 import '../../services/api_service.dart';
 import '../common/custom_text_field.dart';
 import '../common/gradient_button.dart';
 import '../common/outlined_button.dart';
 import '../common/result_card.dart';
-import '../common/score_display.dart';
-import '../common/expandable_section.dart';
-import '../common/watermark_stamp.dart';
 
 class ScanTab extends StatefulWidget {
   const ScanTab({super.key});
@@ -21,56 +17,37 @@ class ScanTab extends StatefulWidget {
 
 class _ScanTabState extends State<ScanTab> {
   final TextEditingController _textController = TextEditingController();
-  final TextEditingController _relationshipController = TextEditingController();
-  String _selectedCategory = 'dm'; // Updated default to DM
+  String _selectedCategory = 'dm';
   String _selectedTone = 'brutal';
-  String _selectedRelationship = 'Partner'; // New relationship context
-  String _selectedAnalysisGoal = 'instant_scan'; // New analysis goal
+  String _selectedRelationship = 'Partner';
+  String _selectedAnalysisGoal = 'instant_scan';
+  String _selectedOutputMode = 'Intel'; // NEW: Missing from your current UI
   bool _isAnalyzing = false;
   WhisperfireResponse? _analysis;
-  bool _showLieDetector = false;
 
   @override
   void initState() {
     super.initState();
-    // Add listeners to update button state when text changes
     _textController.addListener(() {
-      setState(() {}); // Rebuild to update button state
-    });
-    _relationshipController.addListener(() {
-      setState(() {}); // Rebuild to update button state
+      setState(() {});
     });
   }
 
   @override
   void dispose() {
     _textController.dispose();
-    _relationshipController.dispose();
     super.dispose();
   }
 
   Future<void> _runAnalysis() async {
     if (_textController.text.trim().isEmpty) return;
     
-    // Check if relationship is selected
-    if (_selectedRelationship.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a relationship type'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    
     setState(() {
       _isAnalyzing = true;
       _analysis = null;
-      _showLieDetector = false;
     });
 
     try {
-      // Call the WHISPERFIRE API service
       final result = await ApiService.analyzeMessageWhisperfire(
         inputText: _textController.text.trim(),
         contentType: _selectedCategory,
@@ -91,7 +68,6 @@ class _ScanTabState extends State<ScanTab> {
         setState(() {
           _isAnalyzing = false;
         });
-        // Show error message to user
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Analysis failed: ${error.toString()}'),
@@ -108,38 +84,38 @@ class _ScanTabState extends State<ScanTab> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Header
           _buildHeader(),
           const SizedBox(height: 24),
           
-          // Relationship Field
-          _buildRelationshipField(),
+          // 🔥 RELATIONSHIP CONTEXT - Matches backend exactly
+          _buildRelationshipSelector(),
           const SizedBox(height: 24),
           
-          // Input Section
           _buildInputSection(),
           const SizedBox(height: 24),
           
-          // Category Selector
-          _buildCategorySelector(),
+          // 📱 CONTENT TYPE - Matches backend exactly
+          _buildContentTypeSelector(),
           const SizedBox(height: 20),
           
-          // Analysis Goal Selector
+          // ⚡ ANALYSIS GOAL - Matches backend exactly
           _buildAnalysisGoalSelector(),
           const SizedBox(height: 20),
           
-          // Tone Style Selector
+          // 🎭 OUTPUT MODE - NEW: From backend prompts
+          _buildOutputModeSelector(),
+          const SizedBox(height: 20),
+          
+          // 🎨 TONE STYLE - Matches backend exactly
           _buildToneSelector(),
           const SizedBox(height: 24),
           
-          // Scan Button
           _buildScanButton(),
           const SizedBox(height: 24),
           
-          // Results
           if (_analysis != null && _analysis!.scanResult != null) _buildResults(),
           
-          const SizedBox(height: 100), // Bottom padding for tab bar
+          const SizedBox(height: 100),
         ],
       ),
     );
@@ -153,7 +129,7 @@ class _ScanTabState extends State<ScanTab> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.visibility,
+              Icons.radar,
               color: AppColors.primaryPink,
               size: 32,
             ),
@@ -161,7 +137,7 @@ class _ScanTabState extends State<ScanTab> {
             ShaderMask(
               shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
               child: const Text(
-                'MySnitch AI',
+                'WHISPERFIRE',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -173,7 +149,7 @@ class _ScanTabState extends State<ScanTab> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Expose what they\'re really saying',
+          'Psychological radar that scans messages in seconds',
           style: TextStyle(
             color: AppColors.textGray400,
             fontSize: 14,
@@ -183,7 +159,21 @@ class _ScanTabState extends State<ScanTab> {
     );
   }
 
-  Widget _buildRelationshipField() {
+  // 🔥 RELATIONSHIP CONTEXT - Exactly matches backend RELATIONSHIP_CONTEXTS
+  Widget _buildRelationshipSelector() {
+    final relationships = [
+      {'id': 'Partner', 'label': '💕 Partner', 'desc': 'Romantic relationships'},
+      {'id': 'Ex', 'label': '💔 Ex', 'desc': 'Former partners'},
+      {'id': 'Date', 'label': '💘 Date', 'desc': 'Dating situations'},
+      {'id': 'Family', 'label': '👨‍👩‍👧‍👦 Family', 'desc': 'Family dynamics'},
+      {'id': 'Friend', 'label': '👥 Friend', 'desc': 'Friendships'},
+      {'id': 'Coworker', 'label': '💼 Coworker', 'desc': 'Work relationships'},
+      {'id': 'Roommate', 'label': '🏡 Roommate', 'desc': 'Living situations'},
+      {'id': 'Stranger', 'label': '❓ Stranger', 'desc': 'Unknown people'},
+      {'id': 'Boss', 'label': '💼 Boss', 'desc': 'Authority figures'},
+      {'id': 'Acquaintance', 'label': '🤝 Acquaintance', 'desc': 'Casual connections'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -209,20 +199,17 @@ class _ScanTabState extends State<ScanTab> {
               value: _selectedRelationship,
               isExpanded: true,
               dropdownColor: AppColors.backgroundGray800,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-              items: AppConstants.relationshipContexts.map((context) {
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              items: relationships.map((rel) {
                 return DropdownMenuItem<String>(
-                  value: context.id,
+                  value: rel['id']!,
                   child: Row(
                     children: [
-                      Text(context.label),
+                      Text(rel['label']!),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          context.desc,
+                          rel['desc']!,
                           style: TextStyle(
                             color: AppColors.textGray400,
                             fontSize: 12,
@@ -250,13 +237,23 @@ class _ScanTabState extends State<ScanTab> {
   Widget _buildInputSection() {
     return CustomTextField(
       controller: _textController,
-      placeholder: 'Paste their story, bio, or message here...',
+      placeholder: 'Paste their message, bio, or story here...',
       maxLines: 8,
       padding: const EdgeInsets.all(16),
     );
   }
 
-  Widget _buildCategorySelector() {
+  // 📱 CONTENT TYPE - Exactly matches backend getContentTypeContext
+  Widget _buildContentTypeSelector() {
+    final contentTypes = [
+      {'id': 'dm', 'label': '💬 DM', 'desc': 'Private messages'},
+      {'id': 'bio', 'label': '📝 Bio', 'desc': 'Profile bios'},
+      {'id': 'story', 'label': '📱 Story', 'desc': 'Social stories'},
+      {'id': 'post', 'label': '📢 Post', 'desc': 'Social posts'},
+      {'id': 'email', 'label': '📧 Email', 'desc': 'Email messages'},
+      {'id': 'text', 'label': '💬 Text', 'desc': 'SMS messages'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -270,21 +267,21 @@ class _ScanTabState extends State<ScanTab> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: AppConstants.categories.map((category) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: CustomOutlinedButton(
-                  text: category.label,
-                  isSelected: _selectedCategory == category.id,
-                  selectedColor: AppColors.primaryPink,
-                  onPressed: () {
-                    setState(() {
-                      _selectedCategory = category.id;
-                    });
-                  },
-                ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: contentTypes.map((type) {
+            return SizedBox(
+              width: (MediaQuery.of(context).size.width - 48) / 3,
+              child: CustomOutlinedButton(
+                text: type['label']!,
+                isSelected: _selectedCategory == type['id'],
+                selectedColor: AppColors.primaryPink,
+                onPressed: () {
+                  setState(() {
+                    _selectedCategory = type['id']!;
+                  });
+                },
               ),
             );
           }).toList(),
@@ -293,7 +290,14 @@ class _ScanTabState extends State<ScanTab> {
     );
   }
 
+  // ⚡ ANALYSIS GOAL - Matches backend exactly
   Widget _buildAnalysisGoalSelector() {
+    final goals = [
+      {'id': 'instant_scan', 'label': '⚡ Instant Scan', 'desc': 'Quick psychological radar'},
+      {'id': 'comeback_generation', 'label': '🗡️ Comeback Generation', 'desc': 'Viral weapon creation'},
+      {'id': 'pattern_profiling', 'label': '🧠 Pattern Profiling', 'desc': 'Deep behavioral analysis'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -319,20 +323,17 @@ class _ScanTabState extends State<ScanTab> {
               value: _selectedAnalysisGoal,
               isExpanded: true,
               dropdownColor: AppColors.backgroundGray800,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-              items: AppConstants.analysisGoals.map((goal) {
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              items: goals.map((goal) {
                 return DropdownMenuItem<String>(
-                  value: goal.id,
+                  value: goal['id']!,
                   child: Row(
                     children: [
-                      Text(goal.label),
+                      Text(goal['label']!),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          goal.desc,
+                          goal['desc']!,
                           style: TextStyle(
                             color: AppColors.textGray400,
                             fontSize: 12,
@@ -357,12 +358,20 @@ class _ScanTabState extends State<ScanTab> {
     );
   }
 
-  Widget _buildToneSelector() {
+  // 🎭 OUTPUT MODE - NEW: From backend getOutputModeFlavor
+  Widget _buildOutputModeSelector() {
+    final outputModes = [
+      {'id': 'Intel', 'label': '🎯 Intel', 'desc': 'Tactical, factual'},
+      {'id': 'Narrative', 'label': '📖 Narrative', 'desc': 'Story-driven'},
+      {'id': 'Roast', 'label': '🔥 Roast', 'desc': 'Savage but truthful'},
+      {'id': 'Therapeutic', 'label': '💚 Therapeutic', 'desc': 'Healing & validating'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'ANALYSIS STYLE',
+          'OUTPUT MODE',
           style: TextStyle(
             color: AppColors.textGray400,
             fontSize: 12,
@@ -372,25 +381,95 @@ class _ScanTabState extends State<ScanTab> {
         ),
         const SizedBox(height: 12),
         Row(
-          children: AppConstants.toneStyles.map((tone) {
+          children: outputModes.map((mode) {
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: CustomOutlinedButton(
                   text: '',
-                  isSelected: _selectedTone == tone.id,
-                  selectedColor: AppColors.primaryPurple,
+                  isSelected: _selectedOutputMode == mode['id'],
+                  selectedColor: AppColors.primaryCyan,
                   onPressed: () {
                     setState(() {
-                      _selectedTone = tone.id;
+                      _selectedOutputMode = mode['id']!;
                     });
                   },
                   child: Column(
                     children: [
                       Text(
-                        tone.label,
+                        mode['label']!,
                         style: TextStyle(
-                          color: _selectedTone == tone.id
+                          color: _selectedOutputMode == mode['id']
+                              ? AppColors.primaryCyan
+                              : AppColors.textGray400,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        mode['desc']!,
+                        style: TextStyle(
+                          color: (_selectedOutputMode == mode['id']
+                                  ? AppColors.primaryCyan
+                                  : AppColors.textGray400)
+                              .withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // 🎨 TONE STYLE - Exactly matches backend getToneInstructions
+  Widget _buildToneSelector() {
+    final tones = [
+      {'id': 'brutal', 'label': '🔥 Brutal', 'desc': 'No filter'},
+      {'id': 'serious', 'label': '⚖️ Serious', 'desc': 'Firm & clear'},
+      {'id': 'clinical', 'label': '🧪 Clinical', 'desc': 'Neutral'},
+      {'id': 'compassionate', 'label': '💚 Compassionate', 'desc': 'Gentle'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ANALYSIS TONE',
+          style: TextStyle(
+            color: AppColors.textGray400,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: tones.map((tone) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: CustomOutlinedButton(
+                  text: '',
+                  isSelected: _selectedTone == tone['id'],
+                  selectedColor: AppColors.primaryPurple,
+                  onPressed: () {
+                    setState(() {
+                      _selectedTone = tone['id']!;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      Text(
+                        tone['label']!,
+                        style: TextStyle(
+                          color: _selectedTone == tone['id']
                               ? AppColors.primaryPurple
                               : AppColors.textGray400,
                           fontSize: 14,
@@ -399,9 +478,9 @@ class _ScanTabState extends State<ScanTab> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        tone.desc,
+                        tone['desc']!,
                         style: TextStyle(
-                          color: (_selectedTone == tone.id
+                          color: (_selectedTone == tone['id']
                                   ? AppColors.primaryPurple
                                   : AppColors.textGray400)
                               .withOpacity(0.7),
@@ -420,16 +499,13 @@ class _ScanTabState extends State<ScanTab> {
   }
 
   Widget _buildScanButton() {
-    // Check if both text and relationship are filled
     final hasText = _textController.text.trim().isNotEmpty;
-    final hasRelationship = _relationshipController.text.trim().isNotEmpty;
-    final isReady = hasText && hasRelationship;
     
     return GradientButton(
-      text: _isAnalyzing ? 'Reading their mind...' : 'Scan',
+      text: _isAnalyzing ? 'Scanning psychological patterns...' : 'Scan Message',
       isLoading: _isAnalyzing,
-      disabled: !isReady, // Only enable when both fields are filled
-      icon: _isAnalyzing ? null : const Icon(Icons.flash_on, color: Colors.white),
+      disabled: !hasText,
+      icon: _isAnalyzing ? null : const Icon(Icons.psychology, color: Colors.white),
       width: double.infinity,
       height: 56,
       onPressed: _runAnalysis,
@@ -441,7 +517,7 @@ class _ScanTabState extends State<ScanTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Premium Header with Share Button
+          // Premium Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.only(bottom: 20),
@@ -467,10 +543,8 @@ class _ScanTabState extends State<ScanTab> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Share Button
                 GestureDetector(
                   onTap: () {
-                    // TODO: Implement share functionality
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Share feature coming soon!'),
@@ -514,11 +588,11 @@ class _ScanTabState extends State<ScanTab> {
           ),
           const SizedBox(height: 24),
           
-          // Red Flag Score - Prominent Display
+          // Red Flag Score
           _buildPremiumScoreSection(),
           const SizedBox(height: 24),
           
-          // Primary Motive
+          // Key Insights
           _buildPremiumSection(
             '🎯 PRIMARY MOTIVE',
             _analysis!.scanResult!.instantRead.salientFactor,
@@ -526,15 +600,6 @@ class _ScanTabState extends State<ScanTab> {
           ),
           const SizedBox(height: 16),
           
-          // How it will make you feel
-          _buildPremiumSection(
-            '😬 EMOTIONAL IMPACT',
-            _analysis!.scanResult!.instantRead.emotionalTarget,
-            AppColors.warningOrange,
-          ),
-          const SizedBox(height: 16),
-          
-          // What they're not saying
           _buildPremiumSection(
             '🧠 HIDDEN SUBTEXT',
             _analysis!.scanResult!.instantInsights.whatTheyreNotSaying,
@@ -542,23 +607,21 @@ class _ScanTabState extends State<ScanTab> {
           ),
           const SizedBox(height: 16),
           
-          // Pattern Recognition
           _buildPremiumSection(
-            '🕵️ PATTERN RECOGNITION',
-            _analysis!.scanResult!.instantInsights.patternPrediction,
+            '🔮 NEXT MOVE PREDICTION',
+            _analysis!.scanResult!.instantInsights.nextTacticLikely,
             AppColors.primaryCyan,
           ),
           const SizedBox(height: 16),
           
-          // Comeback - Prominent Display
+          // Comeback Section
           _buildPremiumComebackSection(),
           const SizedBox(height: 20),
           
-          // Viral Verdict - Always Visible
+          // Viral Verdict
           _buildPremiumViralVerdictSection(),
           const SizedBox(height: 24),
           
-          // Premium Branding
           _buildPremiumBranding(),
         ],
       ),
@@ -592,7 +655,7 @@ class _ScanTabState extends State<ScanTab> {
       child: Column(
         children: [
           Text(
-            '🚩 RED FLAG SCORE',
+            '🚩 RED FLAG INTENSITY',
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 12,
@@ -667,7 +730,7 @@ class _ScanTabState extends State<ScanTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '💬 YOUR COMEBACK (${_selectedTone.toUpperCase()} MODE)',
+            '💬 RAPID RESPONSE (${_selectedTone.toUpperCase()} MODE)',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 13,
@@ -768,13 +831,13 @@ class _ScanTabState extends State<ScanTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.visibility,
+            Icons.psychology,
             color: AppColors.primaryPink,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
-            'MySnitch AI',
+            'WHISPERFIRE AI',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 14,
@@ -786,4 +849,4 @@ class _ScanTabState extends State<ScanTab> {
       ),
     );
   }
-} 
+}
