@@ -6,7 +6,6 @@ import '../../services/api_service.dart';
 import '../common/custom_text_field.dart';
 import '../common/gradient_button.dart';
 import '../common/outlined_button.dart';
-import '../common/result_card.dart';
 
 class ScanTab extends StatefulWidget {
   const ScanTab({super.key});
@@ -16,21 +15,20 @@ class ScanTab extends StatefulWidget {
 }
 
 class _ScanTabState extends State<ScanTab> {
+  // Inputs
   final TextEditingController _textController = TextEditingController();
-  String _selectedCategory = 'dm';
-  String _selectedTone = 'brutal';
+
+  // Presets
   String _selectedRelationship = 'Partner';
-  String _selectedAnalysisGoal = 'instant_scan';
-  String _selectedOutputMode = 'Intel'; // NEW: Missing from your current UI
+  String _selectedTone = 'clinical'; // brutal | soft | clinical
   bool _isAnalyzing = false;
+
   WhisperfireResponse? _analysis;
 
   @override
   void initState() {
     super.initState();
-    _textController.addListener(() {
-      setState(() {});
-    });
+    _textController.addListener(() => setState(() {}));
   }
 
   @override
@@ -40,8 +38,9 @@ class _ScanTabState extends State<ScanTab> {
   }
 
   Future<void> _runAnalysis() async {
-    if (_textController.text.trim().isEmpty) return;
-    
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
+
     setState(() {
       _isAnalyzing = true;
       _analysis = null;
@@ -49,146 +48,126 @@ class _ScanTabState extends State<ScanTab> {
 
     try {
       final result = await ApiService.analyzeMessageWhisperfire(
-        inputText: _textController.text.trim(),
-        contentType: _selectedCategory,
-        analysisGoal: _selectedAnalysisGoal,
+        inputText: text,
+        contentType: 'dm',            // fixed: scan is always dm
+        analysisGoal: 'instant_scan', // fixed: one output style
         tone: _selectedTone,
         relationship: _selectedRelationship,
+        // NOTE: when you give me ApiService/server, I’ll add preferred_model: "deepseek-v3"
+        // without changing any other params.
       );
 
-      if (mounted) {
-        setState(() {
-          _analysis = result;
-          _isAnalyzing = false;
-        });
-      }
-    } catch (error) {
-      print('❌ Scan analysis failed: $error');
-      if (mounted) {
-        setState(() {
-          _isAnalyzing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Analysis failed: ${error.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _analysis = result;
+        _isAnalyzing = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isAnalyzing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Analysis failed: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasText = _textController.text.trim().isNotEmpty;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           _buildHeader(),
           const SizedBox(height: 24),
-          
-          // 🔥 RELATIONSHIP CONTEXT - Matches backend exactly
+
+          // 1) RELATIONSHIP
           _buildRelationshipSelector(),
-          const SizedBox(height: 24),
-          
+          const SizedBox(height: 16),
+
+          // 2) MESSAGE
           _buildInputSection(),
-          const SizedBox(height: 24),
-          
-          // 📱 CONTENT TYPE - Matches backend exactly
-          _buildContentTypeSelector(),
-          const SizedBox(height: 20),
-          
-          // ⚡ ANALYSIS GOAL - Matches backend exactly
-          _buildAnalysisGoalSelector(),
-          const SizedBox(height: 20),
-          
-          // 🎭 OUTPUT MODE - NEW: From backend prompts
-          _buildOutputModeSelector(),
-          const SizedBox(height: 20),
-          
-          // 🎨 TONE STYLE - Matches backend exactly
+          const SizedBox(height: 16),
+
+          // 3) TONE (brutal / soft / clinical)
           _buildToneSelector(),
           const SizedBox(height: 24),
-          
-          _buildScanButton(),
+
+          // SCAN
+          GradientButton(
+            text: _isAnalyzing ? 'Scanning psychological patterns…' : 'Scan Message',
+            isLoading: _isAnalyzing,
+            disabled: !hasText,
+            icon: _isAnalyzing ? null : const Icon(Icons.psychology, color: Colors.white),
+            width: double.infinity,
+            height: 56,
+            gradient: const LinearGradient(colors: [AppColors.primaryPurple, AppColors.primaryPink]),
+            onPressed: _runAnalysis,
+          ),
           const SizedBox(height: 24),
-          
-          if (_analysis != null && _analysis!.scanResult != null) _buildResults(),
-          
+
+          // OUTPUT CARD
+          if (_analysis?.scanResult != null) _buildResults(),
+
           const SizedBox(height: 100),
         ],
       ),
     );
   }
 
+  // ---- HEADER ----
   Widget _buildHeader() {
     return Column(
       children: [
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.radar,
-              color: AppColors.primaryPink,
-              size: 32,
-            ),
+            const Icon(Icons.radar, color: AppColors.primaryPink, size: 28),
             const SizedBox(width: 8),
             ShaderMask(
-              shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
+              shaderCallback: (bounds) =>
+                  const LinearGradient(colors: [AppColors.primaryPurple, AppColors.primaryPink]).createShader(bounds),
               child: const Text(
                 'WHISPERFIRE',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Psychological radar that scans messages in seconds',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 14,
-          ),
+          'Psychological radar for single messages • instant hidden‑agenda scan',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textGray400, fontSize: 13),
         ),
       ],
     );
   }
 
-  // 🔥 RELATIONSHIP CONTEXT - Exactly matches backend RELATIONSHIP_CONTEXTS
+  // ---- RELATIONSHIP ----
   Widget _buildRelationshipSelector() {
     final relationships = [
-      {'id': 'Partner', 'label': '💕 Partner', 'desc': 'Romantic relationships'},
-      {'id': 'Ex', 'label': '💔 Ex', 'desc': 'Former partners'},
-      {'id': 'Date', 'label': '💘 Date', 'desc': 'Dating situations'},
-      {'id': 'Family', 'label': '👨‍👩‍👧‍👦 Family', 'desc': 'Family dynamics'},
-      {'id': 'Friend', 'label': '👥 Friend', 'desc': 'Friendships'},
-      {'id': 'Coworker', 'label': '💼 Coworker', 'desc': 'Work relationships'},
-      {'id': 'Roommate', 'label': '🏡 Roommate', 'desc': 'Living situations'},
-      {'id': 'Stranger', 'label': '❓ Stranger', 'desc': 'Unknown people'},
-      {'id': 'Boss', 'label': '💼 Boss', 'desc': 'Authority figures'},
-      {'id': 'Acquaintance', 'label': '🤝 Acquaintance', 'desc': 'Casual connections'},
+      {'id': 'Partner', 'label': '💕 Partner'},
+      {'id': 'Ex', 'label': '💔 Ex'},
+      {'id': 'Date', 'label': '💘 Date'},
+      {'id': 'Family', 'label': '👨‍👩‍👧‍👦 Family'},
+      {'id': 'Friend', 'label': '👥 Friend'},
+      {'id': 'Coworker', 'label': '💼 Coworker'},
+      {'id': 'Roommate', 'label': '🏡 Roommate'},
+      {'id': 'Stranger', 'label': '❓ Stranger'},
+      {'id': 'Boss', 'label': '🏢 Boss'},
+      {'id': 'Acquaintance', 'label': '🤝 Acquaintance'},
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'RELATIONSHIP CONTEXT',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
+        _label('RELATIONSHIP'),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: AppColors.backgroundGray800,
             borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
@@ -200,33 +179,13 @@ class _ScanTabState extends State<ScanTab> {
               isExpanded: true,
               dropdownColor: AppColors.backgroundGray800,
               style: const TextStyle(color: Colors.white, fontSize: 16),
-              items: relationships.map((rel) {
-                return DropdownMenuItem<String>(
-                  value: rel['id']!,
-                  child: Row(
-                    children: [
-                      Text(rel['label']!),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          rel['desc']!,
-                          style: TextStyle(
-                            color: AppColors.textGray400,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedRelationship = value;
-                  });
-                }
-              },
+              items: relationships
+                  .map((rel) => DropdownMenuItem<String>(
+                        value: rel['id']!,
+                        child: Text(rel['label']!),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedRelationship = v!),
             ),
           ),
         ),
@@ -234,256 +193,62 @@ class _ScanTabState extends State<ScanTab> {
     );
   }
 
+  // ---- MESSAGE ----
   Widget _buildInputSection() {
-    return CustomTextField(
-      controller: _textController,
-      placeholder: 'Paste their message, bio, or story here...',
-      maxLines: 8,
-      padding: const EdgeInsets.all(16),
-    );
-  }
-
-  // 📱 CONTENT TYPE - Exactly matches backend getContentTypeContext
-  Widget _buildContentTypeSelector() {
-    final contentTypes = [
-      {'id': 'dm', 'label': '💬 DM', 'desc': 'Private messages'},
-      {'id': 'bio', 'label': '📝 Bio', 'desc': 'Profile bios'},
-      {'id': 'story', 'label': '📱 Story', 'desc': 'Social stories'},
-      {'id': 'post', 'label': '📢 Post', 'desc': 'Social posts'},
-      {'id': 'email', 'label': '📧 Email', 'desc': 'Email messages'},
-      {'id': 'text', 'label': '💬 Text', 'desc': 'SMS messages'},
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'CONTENT TYPE',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: contentTypes.map((type) {
-            return SizedBox(
-              width: (MediaQuery.of(context).size.width - 48) / 3,
-              child: CustomOutlinedButton(
-                text: type['label']!,
-                isSelected: _selectedCategory == type['id'],
-                selectedColor: AppColors.primaryPink,
-                onPressed: () {
-                  setState(() {
-                    _selectedCategory = type['id']!;
-                  });
-                },
-              ),
-            );
-          }).toList(),
+        _label('MESSAGE (1)'),
+        const SizedBox(height: 10),
+        CustomTextField(
+          controller: _textController,
+          placeholder: 'Paste their message, bio, or post here…',
+          maxLines: 8,
+          padding: const EdgeInsets.all(16),
         ),
       ],
     );
   }
 
-  // ⚡ ANALYSIS GOAL - Matches backend exactly
-  Widget _buildAnalysisGoalSelector() {
-    final goals = [
-      {'id': 'instant_scan', 'label': '⚡ Instant Scan', 'desc': 'Quick psychological radar'},
-      {'id': 'comeback_generation', 'label': '🗡️ Comeback Generation', 'desc': 'Viral weapon creation'},
-      {'id': 'pattern_profiling', 'label': '🧠 Pattern Profiling', 'desc': 'Deep behavioral analysis'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'ANALYSIS GOAL',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.backgroundGray800,
-            borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
-            border: Border.all(color: AppColors.borderGray600),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedAnalysisGoal,
-              isExpanded: true,
-              dropdownColor: AppColors.backgroundGray800,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              items: goals.map((goal) {
-                return DropdownMenuItem<String>(
-                  value: goal['id']!,
-                  child: Row(
-                    children: [
-                      Text(goal['label']!),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          goal['desc']!,
-                          style: TextStyle(
-                            color: AppColors.textGray400,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedAnalysisGoal = value;
-                  });
-                }
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 🎭 OUTPUT MODE - NEW: From backend getOutputModeFlavor
-  Widget _buildOutputModeSelector() {
-    final outputModes = [
-      {'id': 'Intel', 'label': '🎯 Intel', 'desc': 'Tactical, factual'},
-      {'id': 'Narrative', 'label': '📖 Narrative', 'desc': 'Story-driven'},
-      {'id': 'Roast', 'label': '🔥 Roast', 'desc': 'Savage but truthful'},
-      {'id': 'Therapeutic', 'label': '💚 Therapeutic', 'desc': 'Healing & validating'},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'OUTPUT MODE',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: outputModes.map((mode) {
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: CustomOutlinedButton(
-                  text: '',
-                  isSelected: _selectedOutputMode == mode['id'],
-                  selectedColor: AppColors.primaryCyan,
-                  onPressed: () {
-                    setState(() {
-                      _selectedOutputMode = mode['id']!;
-                    });
-                  },
-                  child: Column(
-                    children: [
-                      Text(
-                        mode['label']!,
-                        style: TextStyle(
-                          color: _selectedOutputMode == mode['id']
-                              ? AppColors.primaryCyan
-                              : AppColors.textGray400,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        mode['desc']!,
-                        style: TextStyle(
-                          color: (_selectedOutputMode == mode['id']
-                                  ? AppColors.primaryCyan
-                                  : AppColors.textGray400)
-                              .withOpacity(0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  // 🎨 TONE STYLE - Exactly matches backend getToneInstructions
+  // ---- TONE (brutal/soft/clinical) ----
   Widget _buildToneSelector() {
     final tones = [
-      {'id': 'brutal', 'label': '🔥 Brutal', 'desc': 'No filter'},
-      {'id': 'serious', 'label': '⚖️ Serious', 'desc': 'Firm & clear'},
-      {'id': 'clinical', 'label': '🧪 Clinical', 'desc': 'Neutral'},
-      {'id': 'compassionate', 'label': '💚 Compassionate', 'desc': 'Gentle'},
+      {'id': 'brutal', 'label': '🔥 Brutal', 'desc': 'Maximum exposure'},
+      {'id': 'soft', 'label': '💚 Soft', 'desc': 'Gentle & validating'},
+      {'id': 'clinical', 'label': '🧪 Clinical', 'desc': 'Forensic & neutral'},
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'ANALYSIS TONE',
-          style: TextStyle(
-            color: AppColors.textGray400,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
+        _label('TONE'),
+        const SizedBox(height: 10),
         Row(
           children: tones.map((tone) {
+            final selected = _selectedTone == tone['id'];
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: CustomOutlinedButton(
                   text: '',
-                  isSelected: _selectedTone == tone['id'],
+                  isSelected: selected,
                   selectedColor: AppColors.primaryPurple,
-                  onPressed: () {
-                    setState(() {
-                      _selectedTone = tone['id']!;
-                    });
-                  },
+                  onPressed: () => setState(() => _selectedTone = tone['id']!),
                   child: Column(
                     children: [
                       Text(
                         tone['label']!,
                         style: TextStyle(
-                          color: _selectedTone == tone['id']
-                              ? AppColors.primaryPurple
-                              : AppColors.textGray400,
+                          color: selected ? AppColors.primaryPurple : AppColors.textGray400,
                           fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         tone['desc']!,
                         style: TextStyle(
-                          color: (_selectedTone == tone['id']
-                                  ? AppColors.primaryPurple
-                                  : AppColors.textGray400)
-                              .withOpacity(0.7),
+                          color: (selected ? AppColors.primaryPurple : AppColors.textGray400).withOpacity(0.75),
                           fontSize: 12,
                         ),
                       ),
@@ -498,351 +263,263 @@ class _ScanTabState extends State<ScanTab> {
     );
   }
 
-  Widget _buildScanButton() {
-    final hasText = _textController.text.trim().isNotEmpty;
-    
-    return GradientButton(
-      text: _isAnalyzing ? 'Scanning psychological patterns...' : 'Scan Message',
-      isLoading: _isAnalyzing,
-      disabled: !hasText,
-      icon: _isAnalyzing ? null : const Icon(Icons.psychology, color: Colors.white),
-      width: double.infinity,
-      height: 56,
-      onPressed: _runAnalysis,
+  // ---- RESULTS (Shareable Card) ----
+  Widget _buildResults() {
+    final s = _analysis!.scanResult!;
+    return ShareableResultCard(
+      title: s.instantRead.headline,
+      onShare: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Share coming soon!'), backgroundColor: AppColors.primaryPink),
+        );
+      },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _scoreBanner(s.psychologicalScan.redFlagIntensity),
+          const SizedBox(height: 16),
+
+          _section('🎯 SALIENT FACTOR', s.instantRead.salientFactor, AppColors.primaryPink),
+          const SizedBox(height: 12),
+
+          _section('🎭 HIDDEN AGENDA', s.instantRead.hiddenAgenda, AppColors.primaryPurple),
+          const SizedBox(height: 12),
+
+          _section('👑 POWER PLAY', s.instantRead.powerPlay, AppColors.primaryCyan),
+          const SizedBox(height: 12),
+
+          _section('🔮 NEXT MOVE', s.instantInsights.nextTacticLikely, AppColors.successGreen),
+          const SizedBox(height: 18),
+
+          _rapidBlock(_selectedTone.toUpperCase(), s.rapidResponse.comebackSuggestion),
+          const SizedBox(height: 16),
+
+          _viralBlock(s.viralVerdict.sussVerdict, s.viralVerdict.gutValidation),
+        ],
+      ),
     );
   }
 
-  Widget _buildResults() {
-    return ResultCard(
+  Widget _scoreBanner(int score) {
+    final isHigh = score >= 60;
+    final isCritical = score >= 80;
+
+    final gradient = isCritical
+        ? LinearGradient(colors: [AppColors.dangerRed, AppColors.dangerRed.withOpacity(0.8)])
+        : isHigh
+            ? LinearGradient(colors: [AppColors.warningOrange, AppColors.warningOrange.withOpacity(0.85)])
+            : LinearGradient(colors: [AppColors.successGreen, AppColors.successGreen.withOpacity(0.85)]);
+
+    final borderColor = isCritical
+        ? AppColors.dangerRed.withOpacity(0.3)
+        : isHigh
+            ? AppColors.warningOrange.withOpacity(0.3)
+            : AppColors.successGreen.withOpacity(0.3);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(AppConstants.largeRadius),
+        border: Border.all(color: borderColor, width: 2),
+      ),
+      child: Column(
+        children: [
+          Text('🚩 RED FLAG INTENSITY',
+              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+          const SizedBox(height: 6),
+          Text('$score/100', style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(isCritical ? 'CRITICAL RISK' : isHigh ? 'HIGH RISK' : 'LOW/MODERATE',
+              style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 13, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _rapidBlock(String tone, String line) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: AppColors.pinkPurpleGradient,
+        borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
+        border: Border.all(color: AppColors.primaryPink.withOpacity(0.28), width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Premium Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.borderGray600,
-                  width: 0.5,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _analysis!.scanResult!.instantRead.headline,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Share feature coming soon!'),
-                        backgroundColor: AppColors.primaryPink,
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryPink.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.primaryPink,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.share,
-                          color: AppColors.primaryPink,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Share',
-                          style: TextStyle(
-                            color: AppColors.primaryPink,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Red Flag Score
-          _buildPremiumScoreSection(),
-          const SizedBox(height: 24),
-          
-          // Key Insights
-          _buildPremiumSection(
-            '🎯 PRIMARY MOTIVE',
-            _analysis!.scanResult!.instantRead.salientFactor,
-            AppColors.primaryPink,
-          ),
-          const SizedBox(height: 16),
-          
-          _buildPremiumSection(
-            '🧠 HIDDEN SUBTEXT',
-            _analysis!.scanResult!.instantInsights.whatTheyreNotSaying,
-            AppColors.primaryPurple,
-          ),
-          const SizedBox(height: 16),
-          
-          _buildPremiumSection(
-            '🔮 NEXT MOVE PREDICTION',
-            _analysis!.scanResult!.instantInsights.nextTacticLikely,
-            AppColors.primaryCyan,
-          ),
-          const SizedBox(height: 16),
-          
-          // Comeback Section
-          _buildPremiumComebackSection(),
-          const SizedBox(height: 20),
-          
-          // Viral Verdict
-          _buildPremiumViralVerdictSection(),
-          const SizedBox(height: 24),
-          
-          _buildPremiumBranding(),
+          Text('💬 RAPID RESPONSE ($tone MODE)',
+              style: TextStyle(color: AppColors.primaryPink, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+          const SizedBox(height: 10),
+          Text(line, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600, height: 1.35)),
         ],
       ),
     );
   }
 
-  Widget _buildPremiumScoreSection() {
-    final score = _analysis!.scanResult!.psychologicalScan.redFlagIntensity;
-    final isHighRisk = score >= 60;
-    final isCritical = score >= 80;
-    
+  Widget _viralBlock(String verdict, String gut) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: isCritical 
-            ? LinearGradient(colors: [AppColors.dangerRed, AppColors.dangerRed.withOpacity(0.8)])
-            : isHighRisk
-                ? LinearGradient(colors: [AppColors.warningOrange, AppColors.warningOrange.withOpacity(0.8)])
-                : LinearGradient(colors: [AppColors.successGreen, AppColors.successGreen.withOpacity(0.8)]),
-        borderRadius: BorderRadius.circular(AppConstants.largeRadius),
-        border: Border.all(
-          color: isCritical 
-              ? AppColors.dangerRed.withOpacity(0.3)
-              : isHighRisk
-                  ? AppColors.warningOrange.withOpacity(0.3)
-                  : AppColors.successGreen.withOpacity(0.3),
-          width: 2,
-        ),
+        gradient: AppColors.blueCyanGradient,
+        borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
+        border: Border.all(color: AppColors.primaryBlue.withOpacity(0.28), width: 1),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '🚩 RED FLAG INTENSITY',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$score/100',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isCritical ? 'CRITICAL RISK' : isHighRisk ? 'HIGH RISK' : 'SAFE ZONE',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
-            ),
-          ),
+          Text('🔥 VIRAL VERDICT',
+              style: TextStyle(color: AppColors.primaryBlue, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+          const SizedBox(height: 10),
+          Text(verdict, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700, height: 1.3)),
+          const SizedBox(height: 6),
+          Text(gut, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, height: 1.35)),
         ],
       ),
     );
   }
 
-  Widget _buildPremiumSection(String title, String content, Color color) {
+  Widget _section(String title, String content, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: color,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          content,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            height: 1.4,
-          ),
-        ),
+        Text(title, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+        const SizedBox(height: 6),
+        Text(content, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.4, fontWeight: FontWeight.w500)),
       ],
     );
   }
 
-  Widget _buildPremiumComebackSection() {
+  Widget _label(String text) =>
+      Text(text, style: TextStyle(color: AppColors.textGray400, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.4));
+}
+
+/* =========================
+   Reusable ShareableResultCard
+   ========================= */
+
+class ShareableResultCard extends StatelessWidget {
+  final String title; // Headline
+  final Widget body; // Inner content
+  final VoidCallback onShare; // Share action
+  final EdgeInsetsGeometry? padding;
+
+  const ShareableResultCard({
+    super.key,
+    required this.title,
+    required this.body,
+    required this.onShare,
+    this.padding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: AppColors.pinkPurpleGradient,
-        borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
-        border: Border.all(
-          color: AppColors.primaryPink.withOpacity(0.3),
-          width: 1,
-        ),
+        color: AppColors.backgroundGray800,
+        borderRadius: BorderRadius.circular(AppConstants.largeRadius),
+        border: Border.all(color: AppColors.borderGray600, width: 1),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '💬 RAPID RESPONSE (${_selectedTone.toUpperCase()} MODE)',
-            style: TextStyle(
-              color: AppColors.primaryPink,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          // Header (title + Share)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      height: 1.3,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _ShareButton(onTap: onShare),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            _analysis!.scanResult!.rapidResponse.comebackSuggestion,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              fontStyle: FontStyle.italic,
-              height: 1.4,
-            ),
-          ),
+          // Divider
+          Container(height: 1, color: AppColors.borderGray600.withOpacity(0.6)),
+
+          // Body
+          Padding(padding: padding ?? const EdgeInsets.all(16), child: body),
+
+          // Footer brand
+          const _BrandingFooter(),
         ],
       ),
     );
   }
+}
 
-  Widget _buildPremiumViralVerdictSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppColors.blueCyanGradient,
-        borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
-        border: Border.all(
-          color: AppColors.primaryBlue.withOpacity(0.3),
-          width: 1,
+class _ShareButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ShareButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primaryPink.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.primaryPink, width: 1),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '🔥 VIRAL VERDICT',
-                style: TextStyle(
-                  color: AppColors.primaryBlue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.share, color: AppColors.primaryPink, size: 16),
+            SizedBox(width: 6),
+            Text(
+              'Share',
+              style: TextStyle(
+                color: AppColors.primaryPink,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
-              const Spacer(),
-              Text(
-                'SCREENSHOT WORTHY',
-                style: TextStyle(
-                  color: AppColors.successGreen,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _analysis!.scanResult!.viralVerdict.sussVerdict,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _analysis!.scanResult!.viralVerdict.gutValidation,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
-              fontSize: 13,
-              height: 1.3,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildPremiumBranding() {
+class _BrandingFooter extends StatelessWidget {
+  const _BrandingFooter();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: AppColors.borderGray600,
-            width: 0.5,
-          ),
-        ),
+        border: Border(top: BorderSide(color: AppColors.borderGray600, width: 0.6)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.visibility,
-            color: AppColors.primaryPink,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
+        children: const [
+          Icon(Icons.visibility, color: AppColors.primaryPink, size: 16),
+          SizedBox(width: 8),
           Text(
             'MySnitch AI',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
             ),
           ),
         ],
