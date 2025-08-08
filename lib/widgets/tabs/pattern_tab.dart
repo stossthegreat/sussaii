@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../utils/constants.dart';
-import '../../utils/mock_data.dart';
+import '../../models/whisperfire_models.dart';
+import '../../services/api_service.dart';
 import '../common/custom_text_field.dart';
 import '../common/gradient_button.dart';
 import '../common/outlined_button.dart';
 import '../common/result_card.dart';
-import '../common/loading_spinner.dart';
-import '../common/watermark_stamp.dart';
-import '../../services/api_service.dart';
-import '../../models/whisperfire_models.dart';
-import 'package:flutter/services.dart';
 
 class PatternTab extends StatefulWidget {
   const PatternTab({super.key});
@@ -21,17 +17,18 @@ class PatternTab extends StatefulWidget {
 
 class _PatternTabState extends State<PatternTab> {
   final List<TextEditingController> _messageControllers = [TextEditingController()];
-  String _selectedRelationship = 'Partner';
   final TextEditingController _nameController = TextEditingController();
+  String _selectedRelationship = 'Partner';
+  String _selectedOutputMode = 'Intel'; // NEW: From backend ARCHETYPES
+  String _selectedTone = 'clinical'; // NEW: Matches backend exactly
   bool _isAnalyzing = false;
   WhisperfireResponse? _analysis;
 
   @override
   void initState() {
     super.initState();
-    // Add listener to first controller
     _messageControllers[0].addListener(() {
-      setState(() {}); // Rebuild to update button state
+      setState(() {});
     });
   }
 
@@ -45,7 +42,6 @@ class _PatternTabState extends State<PatternTab> {
   }
 
   Future<void> _runPatternAnalysis() async {
-    // Get all valid messages
     final messages = _messageControllers
         .map((controller) => controller.text.trim())
         .where((text) => text.isNotEmpty)
@@ -59,13 +55,13 @@ class _PatternTabState extends State<PatternTab> {
     });
 
     try {
-      // Call the WHISPERFIRE API service for pattern analysis
       final result = await ApiService.analyzeMessageWhisperfire(
         inputText: messages.join('\n'),
         contentType: 'dm',
         analysisGoal: 'pattern_profiling',
-        tone: 'clinical',
+        tone: _selectedTone,
         relationship: _selectedRelationship,
+        personName: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : null,
       );
 
       if (mounted) {
@@ -91,11 +87,11 @@ class _PatternTabState extends State<PatternTab> {
   }
 
   void _addMessage() {
-    if (_messageControllers.length < 5) { // Max 5 messages as requested
+    if (_messageControllers.length < 5) {
       setState(() {
         final newController = TextEditingController();
         newController.addListener(() {
-          setState(() {}); // Rebuild to update button state
+          setState(() {});
         });
         _messageControllers.add(newController);
       });
@@ -114,47 +110,71 @@ class _PatternTabState extends State<PatternTab> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Header
           _buildHeader(),
           const SizedBox(height: 24),
           
-          // Relationship Context Selector
+          // 🔥 RELATIONSHIP CONTEXT - Matches backend ARCHETYPES exactly
           _buildRelationshipSelector(),
           const SizedBox(height: 24),
           
-          // Message Stack
+          // 👤 PERSON NAME - NEW: From backend prompt (personName parameter)
+          _buildPersonNameField(),
+          const SizedBox(height: 24),
+          
+          // 🎭 OUTPUT MODE - NEW: From backend ARCHETYPES (Intel/Narrative/Roast)
+          _buildOutputModeSelector(),
+          const SizedBox(height: 24),
+          
+          // 🎨 TONE SELECTOR - Matches backend getToneInstructions exactly
+          _buildToneSelector(),
+          const SizedBox(height: 24),
+          
+          // 📝 MESSAGE STACK
           _buildMessageStack(),
           const SizedBox(height: 24),
           
-          // Analyze Button
           _buildAnalyzeButton(),
           const SizedBox(height: 24),
           
-          // Pattern Results
-          if (_analysis != null) _buildPatternResults(),
+          if (_analysis != null && _analysis!.patternResult != null) _buildPatternResults(),
           
-          const SizedBox(height: 100), // Bottom padding for tab bar
+          const SizedBox(height: 100),
         ],
       ),
     );
   }
 
-  // ✅ HEADER - Matches React: 🧩 + title + subtitle
   Widget _buildHeader() {
     return Column(
       children: [
         const SizedBox(height: 16),
-        const Text(
-          '🧩 Pattern Scan',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.psychology,
+              color: AppColors.primaryPurple,
+              size: 32,
+            ),
+            const SizedBox(width: 8),
+            ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                colors: [AppColors.primaryPurple, AppColors.primaryPink],
+              ).createShader(bounds),
+              child: const Text(
+                'PATTERN.AI',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Analyze multiple messages for behavior patterns',
+          'High-stakes behavioral profiler detecting manipulation loops',
           style: TextStyle(
             color: AppColors.textGray400,
             fontSize: 14,
@@ -164,8 +184,21 @@ class _PatternTabState extends State<PatternTab> {
     );
   }
 
-  // ✅ RELATIONSHIP SELECTOR - New WHISPERFIRE feature
+  // 🔥 RELATIONSHIP CONTEXT - Exactly matches backend ARCHETYPES
   Widget _buildRelationshipSelector() {
+    final relationships = [
+      {'id': 'Partner', 'label': '💕 Partner', 'desc': 'Romantic relationships'},
+      {'id': 'Ex', 'label': '💔 Ex', 'desc': 'Former partners'},
+      {'id': 'Date', 'label': '💘 Date', 'desc': 'Dating situations'},
+      {'id': 'Family', 'label': '👨‍👩‍👧‍👦 Family', 'desc': 'Family dynamics'},
+      {'id': 'Friend', 'label': '👥 Friend', 'desc': 'Friendships'},
+      {'id': 'Coworker', 'label': '💼 Coworker', 'desc': 'Work relationships'},
+      {'id': 'Roommate', 'label': '🏡 Roommate', 'desc': 'Living situations'},
+      {'id': 'Stranger', 'label': '❓ Stranger', 'desc': 'Unknown people'},
+      {'id': 'Boss', 'label': '💼 Boss', 'desc': 'Authority figures'},
+      {'id': 'Acquaintance', 'label': '🤝 Acquaintance', 'desc': 'Casual connections'},
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -191,20 +224,17 @@ class _PatternTabState extends State<PatternTab> {
               value: _selectedRelationship,
               isExpanded: true,
               dropdownColor: AppColors.backgroundGray800,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-              items: AppConstants.relationshipContexts.map((context) {
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              items: relationships.map((rel) {
                 return DropdownMenuItem<String>(
-                  value: context.id,
+                  value: rel['id']!,
                   child: Row(
                     children: [
-                      Text(context.label),
+                      Text(rel['label']!),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          context.desc,
+                          rel['desc']!,
                           style: TextStyle(
                             color: AppColors.textGray400,
                             fontSize: 12,
@@ -229,12 +259,11 @@ class _PatternTabState extends State<PatternTab> {
     );
   }
 
-  // ✅ PERSON NAME - Matches React: Optional name input
+  // 👤 PERSON NAME - NEW: From backend personName parameter
   Widget _buildPersonNameField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ✅ EXACT React styling: "NAME THIS PERSON (OPTIONAL)" label
         Text(
           'NAME THIS PERSON (OPTIONAL)',
           style: TextStyle(
@@ -245,22 +274,158 @@ class _PatternTabState extends State<PatternTab> {
           ),
         ),
         const SizedBox(height: 12),
-        // ✅ REUSED: CustomTextField from Phase 3 with glassmorphism
         CustomTextField(
           controller: _nameController,
-          placeholder: 'e.g., \'Toxic Ex\', \'Confusing Coworker\'',
+          placeholder: 'e.g., "Toxic Ex", "Confusing Coworker"',
           padding: const EdgeInsets.all(12),
         ),
       ],
     );
   }
 
-  // ✅ MESSAGE STACK - Matches React: Dynamic list with numbered inputs (max 7)
+  // 🎭 OUTPUT MODE - NEW: From backend ARCHETYPES (Intel/Narrative/Roast)
+  Widget _buildOutputModeSelector() {
+    final outputModes = [
+      {'id': 'Intel', 'label': '🎯 Intel', 'desc': 'Tactical threat brief'},
+      {'id': 'Narrative', 'label': '📖 Narrative', 'desc': 'Story-driven breakdown'},
+      {'id': 'Roast', 'label': '🔥 Roast', 'desc': 'Savage but truthful'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'OUTPUT MODE',
+          style: TextStyle(
+            color: AppColors.textGray400,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: outputModes.map((mode) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: CustomOutlinedButton(
+                  text: '',
+                  isSelected: _selectedOutputMode == mode['id'],
+                  selectedColor: AppColors.primaryCyan,
+                  onPressed: () {
+                    setState(() {
+                      _selectedOutputMode = mode['id']!;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      Text(
+                        mode['label']!,
+                        style: TextStyle(
+                          color: _selectedOutputMode == mode['id']
+                              ? AppColors.primaryCyan
+                              : AppColors.textGray400,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        mode['desc']!,
+                        style: TextStyle(
+                          color: (_selectedOutputMode == mode['id']
+                                  ? AppColors.primaryCyan
+                                  : AppColors.textGray400)
+                              .withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // 🎨 TONE SELECTOR - Exactly matches backend getToneInstructions
+  Widget _buildToneSelector() {
+    final tones = [
+      {'id': 'brutal', 'label': '🔥 Brutal', 'desc': 'Maximum exposure'},
+      {'id': 'serious', 'label': '⚖️ Serious', 'desc': 'Firm & credible'},
+      {'id': 'clinical', 'label': '🧪 Clinical', 'desc': 'Forensic'},
+      {'id': 'compassionate', 'label': '💚 Compassionate', 'desc': 'Gentle'},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ANALYSIS TONE',
+          style: TextStyle(
+            color: AppColors.textGray400,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: tones.map((tone) {
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: CustomOutlinedButton(
+                  text: '',
+                  isSelected: _selectedTone == tone['id'],
+                  selectedColor: AppColors.primaryPurple,
+                  onPressed: () {
+                    setState(() {
+                      _selectedTone = tone['id']!;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      Text(
+                        tone['label']!,
+                        style: TextStyle(
+                          color: _selectedTone == tone['id']
+                              ? AppColors.primaryPurple
+                              : AppColors.textGray400,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tone['desc']!,
+                        style: TextStyle(
+                          color: (_selectedTone == tone['id']
+                                  ? AppColors.primaryPurple
+                                  : AppColors.textGray400)
+                              .withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMessageStack() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ✅ EXACT React: Counter showing valid messages
         Text(
           'MESSAGES ($_validMessageCount/5)',
           style: TextStyle(
@@ -272,7 +437,6 @@ class _PatternTabState extends State<PatternTab> {
         ),
         const SizedBox(height: 12),
         
-        // ✅ EXACT React: List of message inputs with numbers
         ..._messageControllers.asMap().entries.map((entry) {
           final index = entry.key;
           final controller = entry.value;
@@ -280,14 +444,12 @@ class _PatternTabState extends State<PatternTab> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Stack(
               children: [
-                // ✅ REUSED: CustomTextField with glassmorphism
                 CustomTextField(
                   controller: controller,
                   placeholder: 'Message ${index + 1}...',
-                  maxLines: 5, // Smaller than scan input
+                  maxLines: 5,
                   padding: const EdgeInsets.all(12),
                 ),
-                // ✅ EXACT React: Number badge in top-right corner
                 Positioned(
                   top: 8,
                   right: 8,
@@ -312,7 +474,6 @@ class _PatternTabState extends State<PatternTab> {
           );
         }),
         
-        // ✅ EXACT React: Dashed "Add Message" button (only if < 5 messages)
         if (_messageControllers.length < 5)
           GestureDetector(
             onTap: _addMessage,
@@ -323,7 +484,7 @@ class _PatternTabState extends State<PatternTab> {
                 border: Border.all(
                   color: AppColors.borderGray600,
                   width: 2,
-                  style: BorderStyle.solid, // Dashed effect simulated
+                  style: BorderStyle.solid,
                 ),
                 borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
               ),
@@ -355,42 +516,27 @@ class _PatternTabState extends State<PatternTab> {
     );
   }
 
-  // ✅ ANALYZE BUTTON - Matches React: Purple gradient, requires 2+ messages
   Widget _buildAnalyzeButton() {
-    // Debug logging
-    print('🔍 Pattern Tab Debug:');
-    print('  - Valid message count: $_validMessageCount');
-    print('  - Total controllers: ${_messageControllers.length}');
-    print('  - Button disabled: ${_validMessageCount < 2}');
-    print('  - Is analyzing: $_isAnalyzing');
-    
-    // ✅ REUSED: GradientButton from Phase 3 with custom purple gradient
     return GradientButton(
-      text: _isAnalyzing ? 'Analyzing pattern...' : 'Analyze Communication Pattern',
+      text: _isAnalyzing ? 'Profiling behavioral patterns...' : 'Analyze Communication Pattern',
       isLoading: _isAnalyzing,
-      disabled: _validMessageCount < 2, // Must have 2+ messages like React
-      icon: _isAnalyzing ? null : const Text('🔍', style: TextStyle(fontSize: 18)),
+      disabled: _validMessageCount < 2,
+      icon: _isAnalyzing ? null : const Icon(Icons.psychology, color: Colors.white),
       width: double.infinity,
       height: 56,
-      // ✅ Custom gradient: Purple to Pink (different from scan/comebacks)
       gradient: const LinearGradient(
         colors: [AppColors.primaryPurple, AppColors.primaryPink],
       ),
-      onPressed: () {
-        print('🔍 Pattern Tab: Button pressed!');
-        print('🔍 Pattern Tab: Valid messages: $_validMessageCount');
-        _runPatternAnalysis();
-      },
+      onPressed: _runPatternAnalysis,
     );
   }
 
-  // ✅ PATTERN RESULTS - Premium Design
   Widget _buildPatternResults() {
     return ResultCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Premium Header with Share Button
+          // Premium Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.only(bottom: 20),
@@ -406,7 +552,7 @@ class _PatternTabState extends State<PatternTab> {
               children: [
                 Expanded(
                   child: Text(
-                    'Communication Pattern Analysis',
+                    _analysis!.patternResult!.behavioralProfile.headline,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -416,7 +562,6 @@ class _PatternTabState extends State<PatternTab> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Share Button
                 GestureDetector(
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -462,27 +607,43 @@ class _PatternTabState extends State<PatternTab> {
           ),
           const SizedBox(height: 24),
           
-          // Pattern Risk Score - Prominent Display
+          // Pattern Severity Score
           _buildPatternScoreSection(),
           const SizedBox(height: 24),
           
-          // Viral Insights
+          // Key Pattern Insights
           _buildPremiumPatternSection(
-            '🔥 VIRAL INSIGHTS',
-            _analysis!.patternResult!.viralInsights.sussVerdict,
+            '🎭 MANIPULATOR ARCHETYPE',
+            _analysis!.patternResult!.behavioralProfile.manipulatorArchetype,
+            AppColors.primaryPink,
+          ),
+          const SizedBox(height: 16),
+          
+          _buildPremiumPatternSection(
+            '🔄 DOMINANT PATTERN',
+            _analysis!.patternResult!.behavioralProfile.dominantPattern,
+            AppColors.primaryPurple,
+          ),
+          const SizedBox(height: 16),
+          
+          _buildPremiumPatternSection(
+            '🔮 FUTURE BEHAVIOR PREDICTION',
+            _analysis!.patternResult!.riskAssessment.futureBehaviorPrediction,
             AppColors.primaryCyan,
           ),
           const SizedBox(height: 16),
           
-          // Life Saving Insight
           _buildPremiumPatternSection(
-            '💡 LIFE SAVING INSIGHT',
-            _analysis!.patternResult!.viralInsights.lifeSavingInsight,
+            '🛡️ STRATEGIC RECOMMENDATIONS',
+            _analysis!.patternResult!.strategicRecommendations.boundaryEnforcementStrategy,
             AppColors.successGreen,
           ),
           const SizedBox(height: 20),
           
-          // Premium Branding
+          // Viral Insights
+          _buildViralInsightsSection(),
+          const SizedBox(height: 24),
+          
           _buildPremiumBranding(),
         ],
       ),
@@ -516,7 +677,7 @@ class _PatternTabState extends State<PatternTab> {
       child: Column(
         children: [
           Text(
-            '🧩 PATTERN RISK SCORE',
+            '🧩 PATTERN SEVERITY SCORE',
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 12,
@@ -575,6 +736,67 @@ class _PatternTabState extends State<PatternTab> {
     );
   }
 
+  Widget _buildViralInsightsSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppColors.blueCyanGradient,
+        borderRadius: BorderRadius.circular(AppConstants.mediumRadius),
+        border: Border.all(
+          color: AppColors.primaryBlue.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '🔥 VIRAL INSIGHTS',
+                style: TextStyle(
+                  color: AppColors.primaryBlue,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'LIFE-SAVING',
+                style: TextStyle(
+                  color: AppColors.successGreen,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _analysis!.patternResult!.viralInsights.sussVerdict,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _analysis!.patternResult!.viralInsights.lifeSavingInsight,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 13,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPremiumBranding() {
     return Container(
       width: double.infinity,
@@ -591,13 +813,13 @@ class _PatternTabState extends State<PatternTab> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.compare_arrows,
+            Icons.psychology,
             color: AppColors.primaryPink,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
-            'MySnitch AI',
+            'PATTERN.AI',
             style: TextStyle(
               color: AppColors.primaryPink,
               fontSize: 14,
@@ -609,31 +831,4 @@ class _PatternTabState extends State<PatternTab> {
       ),
     );
   }
-
-  // ✅ Helper method for pattern result sections
-  Widget _buildPatternSection(String title, String content, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: color,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          content,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-} 
+}
